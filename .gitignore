@@ -1,0 +1,9 @@
+dist/
+*.test
+coverage.out
+.env
+terraform-provider-larm
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup

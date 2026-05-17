@@ -320,8 +320,8 @@ func monitorToModel(ctx context.Context, m *larmgo.Monitor) (monitorModel, diag.
 		IntervalSeconds:    types.Int64Value(int64(m.IntervalSeconds)),
 		TimeoutMs:          types.Int64Value(int64(m.TimeoutMs)),
 		Config:             jsontypes.NewNormalizedValue(string(configBytes)),
-		InsertedAt:         types.StringValue(m.InsertedAt.Format("2006-01-02T15:04:05Z07:00")),
-		UpdatedAt:          types.StringValue(m.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")),
+		InsertedAt:         formatTime(m.InsertedAt),
+		UpdatedAt:          formatTime(m.UpdatedAt),
 		ConfirmDownMinutes: optionalInt(m.ConfirmDownMinutes),
 		ConfirmUpMinutes:   optionalInt(m.ConfirmUpMinutes),
 		ConfirmDownAfter:   optionalInt(m.ConfirmDownAfter),
@@ -421,22 +421,4 @@ func alertChannelIDsToSet(_ context.Context, ids *[]uuid.UUID) (types.Set, diag.
 		elems = append(elems, types.StringValue(id.String()))
 	}
 	return types.SetValue(types.StringType, elems)
-}
-
-func optionalInt(p *int) types.Int64 {
-	if p == nil {
-		return types.Int64Null()
-	}
-	return types.Int64Value(int64(*p))
-}
-
-func optionalString(p *string) types.String {
-	if p == nil {
-		return types.StringNull()
-	}
-	return types.StringValue(*p)
-}
-
-func responseError(status int, body []byte) string {
-	return larmgo.ParseAPIError(status, body).Error()
 }

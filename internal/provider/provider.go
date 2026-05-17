@@ -100,6 +100,7 @@ func (p *larmProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 func (p *larmProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewMonitorResource,
+		NewAlertChannelResource,
 	}
 }
 

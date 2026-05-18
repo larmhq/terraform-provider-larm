@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -154,18 +153,11 @@ func (r *monitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 func (r *monitorResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
+	client, diags := clientFromProviderData(req.ProviderData)
+	resp.Diagnostics.Append(diags...)
+	if client != nil {
+		r.client = client
 	}
-	client, ok := req.ProviderData.(*larmgo.ClientWithResponses)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected provider data type",
-			fmt.Sprintf("Expected *larmgo.ClientWithResponses, got %T. This is a bug in terraform-provider-larm.", req.ProviderData),
-		)
-		return
-	}
-	r.client = client
 }
 
 func (r *monitorResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

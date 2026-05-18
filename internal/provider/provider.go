@@ -101,6 +101,7 @@ func (p *larmProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewMonitorResource,
 		NewAlertChannelResource,
+		NewWebhookSubscriptionResource,
 	}
 }
 

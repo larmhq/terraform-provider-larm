@@ -10,12 +10,8 @@ require (
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-go v0.31.0
 	github.com/hashicorp/terraform-plugin-testing v1.16.0
-	github.com/larmhq/larm-go v0.1.0
+	github.com/larmhq/larm-go v0.2.0
 )
-
-// Local development against in-progress larm-go changes.
-// Remove and bump the v0.1.0 above once larm-go releases the structure endpoint.
-replace github.com/larmhq/larm-go => ../larm-go
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect

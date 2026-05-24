@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0]
 
 ### Added
 
@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `slug` is mutable in-place to match the API. Replacement would cascade-destroy components, subscribers, and any linked custom domain, so an in-place rename is the correct (less destructive) behavior. Consumers of the public URL should still treat slug changes as a contract break.
 - `down_status` on monitor links defaults to `major_outage` and is validated against the closed set `degraded_performance | partial_outage | major_outage` to fail at `terraform plan` instead of on apply.
 
-## [0.1.0] - TBD
+## [0.1.0]
 
 ### Added
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Resource `larm_status_page` — manages a status page and its full structure (groups, components, monitor links) as one resource. The `components` attribute is the ordered tree shown on the page; top-level entries are either groups (which contain components) or ungrouped components, and they interleave in the order written. CRUD goes through the backend's atomic `PUT /status-pages/:id/structure` endpoint so reorder, move-between-groups, and add/remove all apply as a single transaction. Importable by ID.
+
+### Notes
+
+- `slug` is mutable in-place to match the API. Replacement would cascade-destroy components, subscribers, and any linked custom domain, so an in-place rename is the correct (less destructive) behavior. Consumers of the public URL should still treat slug changes as a contract break.
+- `down_status` on monitor links defaults to `major_outage` and is validated against the closed set `degraded_performance | partial_outage | major_outage` to fail at `terraform plan` instead of on apply.
+
 ## [0.1.0] - TBD
 
 ### Added

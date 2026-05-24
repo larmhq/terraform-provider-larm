@@ -13,6 +13,10 @@ require (
 	github.com/larmhq/larm-go v0.1.0
 )
 
+// Local development against in-progress larm-go changes.
+// Remove and bump the v0.1.0 above once larm-go releases the structure endpoint.
+replace github.com/larmhq/larm-go => ../larm-go
+
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/Kunde21/markdownfmt/v3 v3.1.0 // indirect

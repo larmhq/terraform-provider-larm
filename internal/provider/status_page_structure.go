@@ -98,10 +98,10 @@ func topLevelEntryObjectType() attr.Type {
 }
 
 // stateFromAPI converts the decoded API response into the Terraform state model.
-func stateFromAPI(ctx context.Context, page statusPageData) (statusPageModel, diag.Diagnostics) {
+func stateFromAPI(page statusPageData) (statusPageModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	componentsValue, d := componentsListFromAPI(ctx, page.Components)
+	componentsValue, d := componentsListFromAPI(page.Components)
 	diags.Append(d...)
 	if diags.HasError() {
 		return statusPageModel{}, diags
@@ -135,10 +135,10 @@ func optionalBool(p *bool) types.Bool {
 	return types.BoolValue(*p)
 }
 
-func componentsListFromAPI(ctx context.Context, entries []treeEntry) (types.List, diag.Diagnostics) {
+func componentsListFromAPI(entries []treeEntry) (types.List, diag.Diagnostics) {
 	values := make([]attr.Value, 0, len(entries))
 	for _, entry := range entries {
-		objValue, diags := topLevelEntryValue(ctx, entry)
+		objValue, diags := topLevelEntryValue(entry)
 		if diags.HasError() {
 			return types.ListNull(topLevelEntryObjectType()), diags
 		}
@@ -147,9 +147,9 @@ func componentsListFromAPI(ctx context.Context, entries []treeEntry) (types.List
 	return types.ListValueMust(topLevelEntryObjectType(), values), nil
 }
 
-func topLevelEntryValue(ctx context.Context, entry treeEntry) (attr.Value, diag.Diagnostics) {
-	innerComponents := types.ListNull(innerComponentObjectType())
-	monitors := types.ListNull(monitorObjectType())
+func topLevelEntryValue(entry treeEntry) (attr.Value, diag.Diagnostics) {
+	innerComponents := types.ListValueMust(innerComponentObjectType(), []attr.Value{})
+	monitors := types.ListValueMust(monitorObjectType(), []attr.Value{})
 
 	switch entry.Type {
 	case entryTypeGroup:
@@ -163,7 +163,7 @@ func topLevelEntryValue(ctx context.Context, entry treeEntry) (attr.Value, diag.
 		monitors = monitorListValue(entry.Monitors)
 	}
 
-	return types.ObjectValueFrom(ctx, topLevelEntryObjectType().(types.ObjectType).AttrTypes, map[string]attr.Value{
+	return types.ObjectValue(topLevelEntryObjectType().(types.ObjectType).AttrTypes, map[string]attr.Value{
 		"type":        types.StringValue(entry.Type),
 		"id":          types.StringValue(entry.ID),
 		"name":        types.StringValue(entry.Name),

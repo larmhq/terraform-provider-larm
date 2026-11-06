@@ -8,11 +8,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -154,12 +157,20 @@ func (r *statusPageResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"components": schema.ListNestedAttribute{
 				MarkdownDescription: "Ordered tree of groups and ungrouped components. List order is display order on the page.",
 				Optional:            true,
+				Computed:            true,
+				Default:             emptyList(topLevelEntryObjectType()),
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: topLevelEntryAttributes(),
 				},
 			},
 		},
 	}
+}
+
+// emptyList defaults a list to [], so leaving it out of the config matches the
+// API, which returns an empty list when there's nothing to return.
+func emptyList(elementType attr.Type) defaults.List {
+	return listdefault.StaticValue(types.ListValueMust(elementType, []attr.Value{}))
 }
 
 func topLevelEntryAttributes() map[string]schema.Attribute {
@@ -187,6 +198,8 @@ func topLevelEntryAttributes() map[string]schema.Attribute {
 		"components": schema.ListNestedAttribute{
 			MarkdownDescription: "Components inside this group (in display order). Only valid when `type = \"group\"`.",
 			Optional:            true,
+			Computed:            true,
+			Default:             emptyList(innerComponentObjectType()),
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: innerComponentAttributes(),
 			},
@@ -197,6 +210,8 @@ func topLevelEntryAttributes() map[string]schema.Attribute {
 		"monitors": schema.ListNestedAttribute{
 			MarkdownDescription: "Monitors linked to this component. Only valid when `type = \"component\"`.",
 			Optional:            true,
+			Computed:            true,
+			Default:             emptyList(monitorObjectType()),
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: monitorAttributes(),
 			},
@@ -221,6 +236,8 @@ func innerComponentAttributes() map[string]schema.Attribute {
 		"monitors": schema.ListNestedAttribute{
 			MarkdownDescription: "Monitors linked to this component.",
 			Optional:            true,
+			Computed:            true,
+			Default:             emptyList(monitorObjectType()),
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: monitorAttributes(),
 			},
@@ -309,7 +326,7 @@ func (r *statusPageResource) Create(ctx context.Context, req resource.CreateRequ
 		finalPage = structuredPage
 	}
 
-	state, diags := stateFromAPI(ctx, finalPage)
+	state, diags := stateFromAPI(finalPage)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -352,7 +369,7 @@ func (r *statusPageResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	newState, diags := stateFromAPI(ctx, fetched.Data)
+	newState, diags := stateFromAPI(fetched.Data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -405,7 +422,7 @@ func (r *statusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	newState, diags := stateFromAPI(ctx, updatedPage)
+	newState, diags := stateFromAPI(updatedPage)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

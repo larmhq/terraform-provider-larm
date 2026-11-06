@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `larm_status_page` no longer fails with a Value Conversion Error when reading a page that has components.
+- `larm_status_page` no longer reports an inconsistent result after apply when `components` or a component's `monitors` are left out.
+
 ## [0.2.0]
 
 ### Added

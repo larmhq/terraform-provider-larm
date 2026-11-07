@@ -33,7 +33,7 @@ resource "larm_alert_channel" "webhook" {
     url = "https://ops.example.com/larm-alerts"
 
     headers = {
-      Authorization = "Bearer ${var.webhook_token}"
+      X-Webhook-Token = var.webhook_token
     }
   }
 }

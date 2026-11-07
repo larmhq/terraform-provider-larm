@@ -53,7 +53,7 @@ resource "larm_monitor" "cron" {
 - `confirm_up_after` (Number) Consecutive passed runs a synthetic monitor needs before going UP.
 - `confirm_up_minutes` (Number) Minutes a non-synthetic monitor must be passing before going UP.
 - `enabled` (Boolean) Whether the monitor is enabled. Defaults to `true`.
-- `interval_seconds` (Number) Seconds between checks. Defaults to `180`.
+- `interval_seconds` (Number) Seconds between checks. Defaults to `180`. For `heartbeat` monitors this is derived from `config.expected_interval` and must not be set.
 - `timeout_ms` (Number) Per-check timeout in milliseconds. Defaults to `10000`.
 
 ### Read-Only

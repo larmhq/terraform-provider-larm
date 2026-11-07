@@ -89,10 +89,10 @@ func (r *monitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:             booldefault.StaticBool(true),
 			},
 			"interval_seconds": schema.Int64Attribute{
-				MarkdownDescription: "Seconds between checks. Defaults to `180`.",
+				MarkdownDescription: "Seconds between checks. Defaults to `180`. For `heartbeat` monitors this is derived from `config.expected_interval` and must not be set.",
 				Optional:            true,
 				Computed:            true,
-				Default:             int64default.StaticInt64(180),
+				PlanModifiers:       []planmodifier.Int64{intervalSecondsModifier{}},
 			},
 			"timeout_ms": schema.Int64Attribute{
 				MarkdownDescription: "Per-check timeout in milliseconds. Defaults to `10000`.",
@@ -413,4 +413,69 @@ func alertChannelIDsToSet(_ context.Context, ids *[]uuid.UUID) (types.Set, diag.
 		elems = append(elems, types.StringValue(id.String()))
 	}
 	return types.SetValue(types.StringType, elems)
+}
+
+// defaultIntervalSeconds is the backend's default for non-heartbeat monitors.
+const defaultIntervalSeconds = 180
+
+// intervalSecondsModifier plans interval_seconds when it isn't configured:
+// config.expected_interval for heartbeat monitors (the backend derives it on
+// create) and defaultIntervalSeconds otherwise. This replaces a static Default,
+// which the framework applies before plan modifiers run: a heartbeat monitor
+// would plan 180 against its stored interval and show a diff on every plan.
+type intervalSecondsModifier struct{}
+
+func (m intervalSecondsModifier) Description(_ context.Context) string {
+	return "defaults to 180, or to config.expected_interval for heartbeat monitors"
+}
+
+func (m intervalSecondsModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m intervalSecondsModifier) PlanModifyInt64(ctx context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
+	var checkType types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("check_type"), &checkType)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if checkType.ValueString() != "heartbeat" {
+		if req.ConfigValue.IsNull() {
+			resp.PlanValue = types.Int64Value(defaultIntervalSeconds)
+		}
+		return
+	}
+
+	if !req.ConfigValue.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"interval_seconds is not configurable for heartbeat monitors",
+			"Heartbeat monitors derive interval_seconds from config.expected_interval. Remove interval_seconds.",
+		)
+		return
+	}
+
+	var config jsontypes.Normalized
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("config"), &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if config.IsUnknown() {
+		resp.PlanValue = types.Int64Unknown()
+		return
+	}
+
+	var parsed struct {
+		ExpectedInterval *int64 `json:"expected_interval"`
+	}
+	if err := json.Unmarshal([]byte(config.ValueString()), &parsed); err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("config"), "Invalid heartbeat config", err.Error())
+		return
+	}
+	if parsed.ExpectedInterval == nil {
+		resp.Diagnostics.AddAttributeError(path.Root("config"), "Invalid heartbeat config", "Heartbeat monitors require config.expected_interval.")
+		return
+	}
+	resp.PlanValue = types.Int64Value(*parsed.ExpectedInterval)
 }

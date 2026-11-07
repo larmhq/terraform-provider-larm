@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -22,10 +23,10 @@ resource "larm_alert_channel" "tf_webhook" {
   type = "webhook"
 
   webhook = {
-    url = "https://ops.example.com/larm"
+    url = "https://example.com/larm"
 
     headers = {
-      Authorization = "Bearer xyz"
+      X-Api-Key = "xyz"
     }
   }
 }
@@ -34,8 +35,8 @@ resource "larm_alert_channel" "tf_webhook" {
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "name", "TF Acc Webhook"),
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "type", "webhook"),
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "enabled", "true"),
-					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.url", "https://ops.example.com/larm"),
-					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.headers.Authorization", "Bearer xyz"),
+					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.url", "https://example.com/larm"),
+					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.headers.X-Api-Key", "xyz"),
 					resource.TestCheckResourceAttrSet("larm_alert_channel.tf_webhook", "id"),
 				),
 			},
@@ -47,14 +48,14 @@ resource "larm_alert_channel" "tf_webhook" {
   enabled = false
 
   webhook = {
-    url = "https://ops.example.com/larm-v2"
+    url = "https://example.com/larm-v2"
   }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "name", "TF Acc Webhook (renamed)"),
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "enabled", "false"),
-					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.url", "https://ops.example.com/larm-v2"),
+					resource.TestCheckResourceAttr("larm_alert_channel.tf_webhook", "webhook.url", "https://example.com/larm-v2"),
 					resource.TestCheckNoResourceAttr("larm_alert_channel.tf_webhook", "webhook.headers"),
 				),
 			},
@@ -137,25 +138,29 @@ func TestAccAlertChannelResource_email(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("Acceptance tests skipped; set TF_ACC=1 to run")
 	}
+	recipient := os.Getenv("LARM_TEST_EMAIL_RECIPIENT")
+	if recipient == "" {
+		t.Skip("LARM_TEST_EMAIL_RECIPIENT must be set to an organization member's email for the email acceptance test")
+	}
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: `
+				Config: fmt.Sprintf(`
 resource "larm_alert_channel" "tf_email" {
   name = "TF Acc Email"
   type = "email"
 
   email = {
-    recipients = ["oncall@example.com", "sre@example.com"]
+    recipients = [%q]
   }
 }
-`,
+`, recipient),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("larm_alert_channel.tf_email", "type", "email"),
-					resource.TestCheckResourceAttr("larm_alert_channel.tf_email", "email.recipients.#", "2"),
-					resource.TestCheckResourceAttr("larm_alert_channel.tf_email", "email.recipients.0", "oncall@example.com"),
+					resource.TestCheckResourceAttr("larm_alert_channel.tf_email", "email.recipients.#", "1"),
+					resource.TestCheckResourceAttr("larm_alert_channel.tf_email", "email.recipients.0", recipient),
 				),
 			},
 		},

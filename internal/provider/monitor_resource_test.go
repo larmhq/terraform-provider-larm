@@ -31,6 +31,7 @@ resource "larm_monitor" "tf_test" {
     url                   = "https://example.com"
     method                = "GET"
     expected_status_codes = [200]
+    follow_redirects      = true
   })
 }
 `,
@@ -52,6 +53,7 @@ resource "larm_monitor" "tf_test" {
     url                   = "https://example.com"
     method                = "GET"
     expected_status_codes = [200]
+    follow_redirects      = true
   })
 }
 `,
@@ -94,6 +96,7 @@ resource "larm_monitor" "tf_heartbeat" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("larm_monitor.tf_heartbeat", "heartbeat_token"),
 					resource.TestCheckResourceAttr("larm_monitor.tf_heartbeat", "check_type", "heartbeat"),
+					resource.TestCheckResourceAttr("larm_monitor.tf_heartbeat", "interval_seconds", "300"),
 				),
 			},
 		},

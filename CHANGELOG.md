@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `larm_status_page` no longer fails with a Value Conversion Error when reading a page that has components.
 - `larm_status_page` no longer reports an inconsistent result after apply when `components` or a component's `monitors` are left out.
+- `larm_status_page` keeps the IDs of groups and components that are reordered or moved between groups. Previously a reorder sent one entry's ID with another and the update failed.
+- `larm_monitor` heartbeat monitors no longer report an inconsistent `interval_seconds` after apply. It is now derived from `config.expected_interval`, and setting it explicitly on a heartbeat monitor is an error.
+- API validation errors now include the field-level details (via larm-go v0.3.1).
+
+### Changed
+
+- The `larm_alert_channel` webhook example no longer uses the `Authorization` header, which the API rejects.
 
 ## [0.2.0]
 

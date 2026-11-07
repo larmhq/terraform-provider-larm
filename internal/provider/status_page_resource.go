@@ -185,7 +185,6 @@ func topLevelEntryAttributes() map[string]schema.Attribute {
 		"id": schema.StringAttribute{
 			MarkdownDescription: "Entry ID (computed).",
 			Computed:            true,
-			PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
 		"name": schema.StringAttribute{
 			MarkdownDescription: "Display name.",
@@ -222,8 +221,7 @@ func topLevelEntryAttributes() map[string]schema.Attribute {
 func innerComponentAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"id": schema.StringAttribute{
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Computed: true,
 		},
 		"name": schema.StringAttribute{
 			MarkdownDescription: "Display name.",
@@ -312,7 +310,7 @@ func (r *statusPageResource) Create(ctx context.Context, req resource.CreateRequ
 	// If the plan declared a structure, replace the (empty) structure with it.
 	finalPage := created.Data
 	if !plan.Components.IsNull() && !plan.Components.IsUnknown() {
-		structurePayload, diags := structureBodyFromPlan(ctx, plan)
+		structurePayload, diags := structureBodyFromPlan(ctx, plan, priorIDs{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -410,7 +408,13 @@ func (r *statusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	// Replace the structure. We always send the full structure so removals are honored.
-	structurePayload, diags := structureBodyFromPlan(ctx, plan)
+	ids, diags := priorIDsFromState(ctx, state.Components)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	structurePayload, diags := structureBodyFromPlan(ctx, plan, ids)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

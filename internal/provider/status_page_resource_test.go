@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccStatusPageResource_basic(t *testing.T) {
@@ -15,6 +18,7 @@ func TestAccStatusPageResource_basic(t *testing.T) {
 	}
 
 	slug := fmt.Sprintf("tf-acc-%d", time.Now().UnixNano())
+	emailID := statecheck.CompareValue(compare.ValuesSame())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -66,6 +70,9 @@ resource "larm_status_page" "tf_test" {
 					resource.TestCheckResourceAttrSet("larm_status_page.tf_test", "id"),
 					resource.TestCheckResourceAttrSet("larm_status_page.tf_test", "url"),
 				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					emailID.AddStateValue("larm_status_page.tf_test", tfjsonpath.New("components").AtSliceIndex(1).AtMapKey("id")),
+				},
 			},
 			// Reorder: move Email to position 0, change a group name
 			{
@@ -97,6 +104,10 @@ resource "larm_status_page" "tf_test" {
 					resource.TestCheckResourceAttr("larm_status_page.tf_test", "components.1.name", "Core"),
 					resource.TestCheckResourceAttr("larm_status_page.tf_test", "components.1.components.#", "1"),
 				),
+				// Moving Email to the front must keep its ID.
+				ConfigStateChecks: []statecheck.StateCheck{
+					emailID.AddStateValue("larm_status_page.tf_test", tfjsonpath.New("components").AtSliceIndex(0).AtMapKey("id")),
+				},
 			},
 			// Import — verify the whole structure round-trips
 			{

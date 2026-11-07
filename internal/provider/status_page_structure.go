@@ -221,11 +221,78 @@ type monitorPlan struct {
 	DownStatus types.String `tfsdk:"down_status"`
 }
 
-// structureBodyFromPlan converts the plan's components into the API request body.
-// Plan IDs are sent as-is so the backend reconciles updates against existing rows;
-// the framework's UseStateForUnknown on the `id` attributes keeps them stable across
-// applies once a resource exists.
-func structureBodyFromPlan(ctx context.Context, plan statusPageModel) (larmgo.ReplaceStatusPageStructureJSONRequestBody, diag.Diagnostics) {
+// priorIDs hands out the IDs of existing groups and components by name, so
+// entries that are reordered or moved between groups keep their identity on
+// the backend. Plan IDs can't be used: list elements are matched by index, so
+// a reorder would pair an entry with another entry's ID.
+type priorIDs struct {
+	groups     idsByName
+	components idsByName
+}
+
+// idsByName queues IDs per name; duplicate names are handed out in list order.
+type idsByName map[string][]uuid.UUID
+
+func priorIDsFromState(ctx context.Context, components types.List) (priorIDs, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	ids := priorIDs{groups: idsByName{}, components: idsByName{}}
+	if components.IsNull() || components.IsUnknown() {
+		return ids, diags
+	}
+
+	var entries []topLevelEntryPlan
+	diags.Append(components.ElementsAs(ctx, &entries, false)...)
+	if diags.HasError() {
+		return ids, diags
+	}
+
+	for _, entry := range entries {
+		switch entry.Type.ValueString() {
+		case entryTypeGroup:
+			diags.Append(ids.groups.add(entry.Name, entry.ID)...)
+
+			var children []innerComponentPlan
+			if !entry.Components.IsNull() {
+				diags.Append(entry.Components.ElementsAs(ctx, &children, false)...)
+			}
+			for _, child := range children {
+				diags.Append(ids.components.add(child.Name, child.ID)...)
+			}
+
+		case entryTypeComponent:
+			diags.Append(ids.components.add(entry.Name, entry.ID)...)
+		}
+		if diags.HasError() {
+			return ids, diags
+		}
+	}
+	return ids, diags
+}
+
+func (m idsByName) add(name, id types.String) diag.Diagnostics {
+	var diags diag.Diagnostics
+	parsed, err := uuid.Parse(id.ValueString())
+	if err != nil {
+		diags.AddError("Invalid status page entry ID in state", err.Error())
+		return diags
+	}
+	m[name.ValueString()] = append(m[name.ValueString()], parsed)
+	return diags
+}
+
+// take returns the next unused prior ID for name, or nil when the entry is new.
+func (m idsByName) take(name types.String) *uuid.UUID {
+	queue := m[name.ValueString()]
+	if len(queue) == 0 {
+		return nil
+	}
+	m[name.ValueString()] = queue[1:]
+	return &queue[0]
+}
+
+// structureBodyFromPlan converts the plan's components into the API request body,
+// reusing IDs from prior state so the backend updates existing rows.
+func structureBodyFromPlan(ctx context.Context, plan statusPageModel, ids priorIDs) (larmgo.ReplaceStatusPageStructureJSONRequestBody, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	body := larmgo.ReplaceStatusPageStructureJSONRequestBody{}
 
@@ -242,7 +309,7 @@ func structureBodyFromPlan(ctx context.Context, plan statusPageModel) (larmgo.Re
 
 	apiEntries := make([]larmgo.StatusPageStructureEntry, 0, len(entries))
 	for _, entry := range entries {
-		apiEntry, d := planEntryToAPI(ctx, entry)
+		apiEntry, d := planEntryToAPI(ctx, entry, ids)
 		diags.Append(d...)
 		if diags.HasError() {
 			return body, diags
@@ -253,7 +320,7 @@ func structureBodyFromPlan(ctx context.Context, plan statusPageModel) (larmgo.Re
 	return body, diags
 }
 
-func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan) (larmgo.StatusPageStructureEntry, diag.Diagnostics) {
+func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan, ids priorIDs) (larmgo.StatusPageStructureEntry, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var apiEntry larmgo.StatusPageStructureEntry
 
@@ -262,7 +329,7 @@ func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan) (larmgo.Status
 		groupEntry := larmgo.StatusPageStructureGroupEntry{
 			Type: larmgo.StatusPageStructureGroupEntryType(entryTypeGroup),
 			Name: entry.Name.ValueString(),
-			Id:   optionalUUIDFromString(entry.ID),
+			Id:   ids.groups.take(entry.Name),
 		}
 
 		var children []innerComponentPlan
@@ -275,7 +342,7 @@ func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan) (larmgo.Status
 
 		apiChildren := make([]larmgo.StatusPageStructureComponentEntry, 0, len(children))
 		for _, child := range children {
-			c, d := innerComponentPlanToAPI(ctx, child)
+			c, d := innerComponentPlanToAPI(ctx, child, ids)
 			diags.Append(d...)
 			if diags.HasError() {
 				return apiEntry, diags
@@ -292,7 +359,7 @@ func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan) (larmgo.Status
 		comp := larmgo.StatusPageStructureComponentEntry{
 			Type: larmgo.StatusPageStructureComponentEntryType(entryTypeComponent),
 			Name: entry.Name.ValueString(),
-			Id:   optionalUUIDFromString(entry.ID),
+			Id:   ids.components.take(entry.Name),
 		}
 		if !entry.Description.IsNull() && !entry.Description.IsUnknown() {
 			comp.Description = entry.Description.ValueStringPointer()
@@ -311,12 +378,12 @@ func planEntryToAPI(ctx context.Context, entry topLevelEntryPlan) (larmgo.Status
 	return apiEntry, diags
 }
 
-func innerComponentPlanToAPI(ctx context.Context, child innerComponentPlan) (larmgo.StatusPageStructureComponentEntry, diag.Diagnostics) {
+func innerComponentPlanToAPI(ctx context.Context, child innerComponentPlan, ids priorIDs) (larmgo.StatusPageStructureComponentEntry, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	comp := larmgo.StatusPageStructureComponentEntry{
 		Type: larmgo.StatusPageStructureComponentEntryType(entryTypeComponent),
 		Name: child.Name.ValueString(),
-		Id:   optionalUUIDFromString(child.ID),
+		Id:   ids.components.take(child.Name),
 	}
 	if !child.Description.IsNull() && !child.Description.IsUnknown() {
 		comp.Description = child.Description.ValueStringPointer()
@@ -366,15 +433,4 @@ func setComponentMonitors(ctx context.Context, comp *larmgo.StatusPageStructureC
 		return err
 	}
 	return json.Unmarshal(encoded, &comp.Monitors)
-}
-
-func optionalUUIDFromString(s types.String) *uuid.UUID {
-	if s.IsNull() || s.IsUnknown() || s.ValueString() == "" {
-		return nil
-	}
-	parsed, err := uuid.Parse(s.ValueString())
-	if err != nil {
-		return nil
-	}
-	return &parsed
 }
